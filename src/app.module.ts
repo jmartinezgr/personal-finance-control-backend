@@ -5,9 +5,10 @@ import { ExpensesModule } from './expenses/expenses.module';
 import { BudgetModule } from './budget/budget.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MongooseModule } from '@nestjs/mongoose';
+import { JwtModule } from '@nestjs/jwt';
 
 @Module({
   imports: [
@@ -22,6 +23,13 @@ import { MongooseModule } from '@nestjs/mongoose';
       autoLoadEntities: true,
       synchronize: true,
     }),
+    JwtModule.registerAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        global: true,
+        secret: config.get<string>('SECRET'),
+      }),
+    }),
     MongooseModule.forRoot(process.env.MONGO_URI || ''),
     WalletModule,
     CreditModule,
@@ -30,5 +38,6 @@ import { MongooseModule } from '@nestjs/mongoose';
     AuthModule,
     UsersModule,
   ],
+  exports: [JwtModule],
 })
 export class AppModule {}
