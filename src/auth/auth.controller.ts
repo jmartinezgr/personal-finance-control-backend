@@ -1,8 +1,9 @@
-import { Body, Controller, Post, Res } from '@nestjs/common';
+import { Body, Controller, Post, Req, Res } from '@nestjs/common';
 import { RegisterDto } from './dto/register.dto';
 import { AuthService } from './auth.service';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { LoginDto } from './dto/login.dto';
+import { setAuthCookies } from './utils/set-auth-cookies.util';
 
 @Controller('auth')
 export class AuthController {
@@ -13,40 +14,34 @@ export class AuthController {
     const { accessToken, refreshToken } =
       await this.authService.register(createUserPayload);
 
-    res.cookie('access_token', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 15 * 60 * 1000, // 15 minutos
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-    });
+    setAuthCookies(res, accessToken, refreshToken);
 
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-    });
-
-    return res.json({ message: 'User registered successfully' });
+    return res.json({ message: 'Usuario registrado con éxito' });
   }
 
   @Post('login')
   async login(@Body() loginDto: LoginDto, @Res() res: Response) {
     const { accessToken, refreshToken } =
       await this.authService.login(loginDto);
-    res.cookie('access_token', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 15 * 60 * 1000, // 15 minutos
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-    });
 
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-    });
-    return res.json({ message: 'User logged in successfully' });
+    setAuthCookies(res, accessToken, refreshToken);
+
+    return res.json({ message: 'Usuario inició sesión con éxito' });
+  }
+
+  @Post('refresh-token')
+  async refreshToken(@Req() req: Request, @Res() res: Response) {
+    const refreshToken = req.cookies['refresh_token'] as string;
+
+    if (!refreshToken) {
+      return res.status(401).json({ message: 'Refresh token no encontrado' });
+    }
+
+    const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
+      await this.authService.refreshTokens(refreshToken);
+
+    setAuthCookies(res, newAccessToken, newRefreshToken);
+
+    return res.json({ message: 'Tokens actualizados con éxito' });
   }
 }
