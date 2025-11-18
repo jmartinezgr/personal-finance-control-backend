@@ -1,9 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { RegisterDto } from './dto/register.dto';
 import { UsersService } from 'src/users/users.service';
 import * as bcrypt from 'bcrypt';
 import { User } from 'src/users/entities/user.entity';
+import { LoginDto } from './dto/login.dto';
 
 @Injectable()
 export class AuthService {
@@ -16,6 +22,11 @@ export class AuthService {
   async register(payload: RegisterDto) {
     let user: User | null = null;
     try {
+      const pre_user = await this.userService.findByEmail(payload.email);
+      if (pre_user) {
+        throw new BadRequestException('User already exists');
+      }
+
       const hashed = await bcrypt.hash(payload.password, 10);
       user = await this.userService.create({
         ...payload,
@@ -56,5 +67,44 @@ export class AuthService {
       }
       throw error;
     }
+  }
+
+  async login(payload: LoginDto) {
+    const user = await this.userService.findByEmail(payload.email);
+    if (!user) {
+      throw new UnauthorizedException('Credenciales Invalidas');
+    }
+
+    const isPasswordValid = await bcrypt.compare(
+      payload.password,
+      user.password,
+    );
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    const accessToken = this.jwtService.sign(
+      {
+        id: user.id,
+        email: user.email,
+      },
+      {
+        expiresIn: '15m',
+      },
+    );
+
+    const refreshToken = this.jwtService.sign(
+      {
+        id: user.id,
+        email: user.email,
+      },
+      {
+        expiresIn: '7d',
+      },
+    );
+
+    return {
+      accessToken,
+      refreshToken,
+    };
   }
 }
